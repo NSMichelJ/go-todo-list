@@ -1,0 +1,278 @@
+{{define "indexPage"}}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo-list with go and vue</title>
+    <link rel="stylesheet" href="/static/site.css">
+    <link rel="stylesheet" href="/static/pikaday.css">
+    <link rel="stylesheet" href="/static/bulma.min.css">
+    <script src="/static/vue.min.js"></script>
+</head>
+
+<body>
+
+    <main id="app" class="container is-max-desktop mt-5">
+        <div class="columns">
+            <div class="column">
+                <form autocomplete="off" class="box">
+                    <div class="field">
+                        <div class="control">
+                            <textarea cols="30" rows="10" class="textarea" v-model="taskContent"></textarea>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <div class="control">
+                            <button class="button is-info is-fullwidth" v-on:click.prevent="addTask">Guardar</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="column has-text-centered">
+                <h1 class="title">App todo list</h1>
+                <h2 class="subtitle">Guardar, elimina y actualiza tus quehaceres</h2>
+                <div class="flow-element calendar-center">
+                    <div id="datepicker"></div>
+                    <p class="subtitle mt-3">[[ time ]]</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="field">
+            <div class="control">
+                <button class="button is-danger" v-on:click="cleanAll">Limpiar</button>
+            </div>
+        </div>
+
+        <div class="columns is-multiline">
+            <div is="todo-item" v-for="item in tasks" v-bind:key="item.id" v-bind:title="item.content"
+                v-bind:task="item" v-on:delete-task="deleteTask(item.id)" v-on:update-task="updateTask(item.id)">
+            </div>
+        </div>
+
+    </main>
+
+    <script src="/static/sweetalert.min.js"></script>
+    <script src="/static/axios.min.js"></script>
+    <script src="/static/moment-with-locales.js"></script>
+    <script src="/static/pikaday.js"></script>
+    <script>
+        var locale = window.navigator.userLanguage || window.navigator.language;
+        moment.locale(locale);
+
+        Vue.component("todo-item", {
+            props: ['task'],
+            delimiters: ["[[", "]]"],
+            template: `
+            <div class="column">
+                <div class="card">
+                    <div class="card-content">
+                        <div class="content">
+                           <p><strong>[[ task.content ]]</strong></p>
+                        <time v-bind:datetime="[[task.created]]">Creada [[ moment(task.created).from(moment(vm.now)) ]]</time>
+                    </div>
+                    <div class="field is-grouped is-grouped-right">
+                        <div class="control">
+                            <button class="button is-danger is-small" v-on:click="$emit('delete-task')">Eliminar</button>
+                        </div>
+                        <div class="control">
+                            <button class="button is-success is-small" v-on:click="$emit('update-task')">Actualizar</button>
+                        </div>
+                    </div>
+                </div>    
+            </div>
+            `
+        })
+
+        const vm = new Vue({
+            el: "#app",
+            delimiters: ["[[", "]]"],
+            created() {
+                this.getTasks();
+            },
+            data: {
+                id: 0,
+                taskContent: "",
+                tasks: [],
+                now: moment().format("YYYY-MM-DD HH:mm:ss"),
+                time: "",
+                message: 'Hola'
+            },
+            methods: {
+                getTasks: function () {
+                    var vm = this;
+                    axios.get('/api/v1/tasks/').then(function (response) {
+                        vm.tasks = response.data;
+                    }).catch(function (error) {
+                        vm.alertError(error);
+                    })
+                },
+
+                addTask: function () {
+                    if (this.taskContent != "") {
+                        var now = moment();
+                        var task = {
+                            content: this.taskContent,
+                            created: now.format("YYYY-MM-DD HH:mm:ss")
+                        }
+
+                        var vm = this;
+                        axios.post("/api/v1/tasks/", task)
+                            .then(function (response) {
+                                vm.tasks.push(response.data);
+
+                                swal({
+                                    title: "Listo!",
+                                    text: "Tarea agregada satisfactoriamente!",
+                                    icon: "success",
+                                });
+                            }).catch(function (error) {
+                                vm.alertError(error);
+                            });
+
+                        this.taskContent = ""
+
+                    } else {
+                        swal({
+                            title: "Ups!",
+                            text: "La tarea esta vacia!",
+                            icon: "warning",
+                        });
+                    }
+
+                },
+
+                deleteTask: function (taskId) {
+                    var vm = this;
+                    swal({
+                        title: "Seguro que quieres eliminar la tarea?",
+                        text: "Estas apunto de eliminar la tarea para siempre!",
+                        icon: "warning",
+                        buttons: ["Cancelar!", "Si seguro"],
+                        dangerMode: true,
+                    }).then((willDelete) => {
+                        if (willDelete) {
+                            axios.delete("/api/v1/task/", {
+                                params: {
+                                    id: taskId,
+                                }
+                            }).then(function (response) {
+                                vm.tasks = response.data;
+                                swal("Poof! La tarea se a eliminado!", {
+                                    icon: "success",
+                                });
+                            }).catch(function (error) {
+                                vm.alertError(error);
+                            });
+                        }
+                    });
+                },
+
+                updateTask: function (taskId) {
+                    var task, vm, textarea;
+                    textarea = document.createElement("textarea");
+                    textarea.className = "textarea"
+
+                    this.tasks.forEach(element => {
+                        if (element.id == taskId) {
+                            task = element;
+                            textarea.value = element.content
+                            return;
+                        }
+                    });
+
+                    vm = this;
+                    swal({
+                        content: {
+                            element: textarea,
+                        },
+                        buttons: {
+                            cancel: {
+                                text: "Cancelar",
+                                value: false,
+                                visible: true,
+                                className: "",
+                                closeModal: true,
+                            },
+                            confirm: {
+                                text: "Guardar cambios",
+                                value: true,
+                                visible: true,
+                                className: "",
+                                closeModal: true
+                            }
+                        },
+                    }).then((willUpdate) => {
+                        if (willUpdate) {
+                            axios.put("/api/v1/task/", {
+                                id: taskId,
+                                content: textarea.value,
+                            }).then(function (response) {
+                                vm.tasks = response.data;
+                            }).catch(function (error) {
+                                vm.alertError(error);
+                            });
+                        }
+                    });
+                },
+
+                cleanAll: function () {
+                    var vm = this;
+                    if (this.tasks.length > 0) {
+                        swal({
+                            title: "Seguro que quieres eliminar todas las tareas?",
+                            text: "Estas apunto de eliminar todas las tareas para siempre!",
+                            icon: "warning",
+                            buttons: ["Cancelar", "Si seguro"],
+                            dangerMode: true,
+                        }).then(function (willDelete) {
+                            if (willDelete) {
+                                axios.delete("/api/v1/tasks/").then(function (e) {
+                                    vm.tasks = e.data;
+                                    swal("Poof! Se a vaciado la lista de tareas!", {
+                                        icon: "success",
+                                    });
+
+                                }).catch(function (error) {
+                                    vm.alertError(error);
+                                });
+                            }
+                        });
+                    } else {
+                        swal("Su lista de tareas esta limpia!");
+                    }
+                },
+
+                alertError: function (error) {
+                    console.log(error);
+                    swal({
+                        title: "Ups!",
+                        text: "A ocurrido error!",
+                        icon: "error",
+                    });
+                },
+
+            },
+            mounted: function () {
+                setInterval(() => {
+                    this.now = moment().format("YYYY-MM-DD HH:mm:ss")
+                    this.time = moment().format("HH:mm:ss")
+                }, 1000);
+            }
+        });
+
+
+        (function () {
+            var field = document.getElementById('datepicker');
+            var picker = new Pikaday();
+            field.parentNode.insertBefore(picker.el, field.nextSibling);
+        })();
+
+    </script>
+</body>
+
+</html>
+{{end}}
