@@ -12,6 +12,15 @@ Aplicación web simple con Api rest en Golang y cliente con Vue
 ## Estructura del proyecto
 ```
 go-todo-list
+├── app
+│   ├── handler
+│   │   └── handlers.go     // Manipuladores de las URL
+│   ├─ model
+│   │   └── model.go        // Modelo de la app
+│   └── app.go
+├── config
+│   └── config.go           // Configuración
+│       
 ├── public
 │   ├── static
 │   │   └── ...             // Archivos estáticos 
@@ -19,7 +28,14 @@ go-todo-list
 │       └── index.html      // Plantilla para el cliente
 ├── schema
 │   └── task_schema         // Código SQL
-└── serve.go                // Contiene la lógica de la app
+└── serve.go
+```
+## Nota
+Antes de correr la app es necesario crear unas variables de entorno con la configuración de la base de datos MySql
+```bash
+set USERNAME=usuario-de-la-bd
+set PASSWORD=Contaseña-de-la-bd
+set DBNAME=nombre-de-la-bd
 ```
 
 ## Recursos

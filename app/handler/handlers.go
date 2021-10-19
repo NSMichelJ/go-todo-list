@@ -7,13 +7,9 @@ import (
 	"encoding/json"
 	"strconv"
 	"log"
-)
 
-type Task struct{
-	ID int64 `json:"id"`
-	Content string `json:"content"`
-	Created string `json:"created"`
-}
+	"github.com/NSMichelJ/go-todo-list/app/model"
+)
 
 var templates = template.Must(template.ParseGlob("public/templates/*"))
 
@@ -43,8 +39,10 @@ func TaskHandler(db *sql.DB, w http.ResponseWriter, r *http.Request){
 			log.Print("Error: ", err)
 			return
 		}
-
-		task, err := get(db, id)
+		
+		var task model.Task
+		task.ID = id
+		task, err = task.Get(db)
 		if err != nil{
 			log.Print("Error: ", err)
 			return
@@ -61,7 +59,9 @@ func TaskHandler(db *sql.DB, w http.ResponseWriter, r *http.Request){
 			return
 		}
 
-		tasks, err := delete(db, id)
+		task := model.Task{}
+		task.ID = id
+		tasks, err := task.Delete(db)
 		if err != nil{
 			log.Print("Error: ", err)
 			return
@@ -71,10 +71,11 @@ func TaskHandler(db *sql.DB, w http.ResponseWriter, r *http.Request){
 
 	} else if r.Method == "PUT" {
 		decoder := json.NewDecoder(r.Body)
-		var params Task
-    	decoder.Decode(&params)
+		var task model.Task
+    	decoder.Decode(&task)
 		
-		tasks, err := update(db, params.Content, params.ID)
+
+		tasks, err := task.Update(db)
 		if err != nil {
 			log.Print("Error: ",err)
 			return
@@ -100,7 +101,8 @@ func TasksHandler(db *sql.DB, w http.ResponseWriter, r *http.Request){
 	}
 
 	if r.Method == "GET" {
-		tasks, err := fethTasks(db)
+		task := model.Task{}
+		tasks, err := task.FethTasks(db)
 		if err != nil {
 			log.Print("Error: ", err)
         	return
@@ -110,20 +112,16 @@ func TasksHandler(db *sql.DB, w http.ResponseWriter, r *http.Request){
 
 	} else if r.Method == "POST" {
 		decoder := json.NewDecoder(r.Body)
-		var params Task
-    	decoder.Decode(&params)
+		var task model.Task
+    	decoder.Decode(&task)
 
-		id, err := add(db, params.Content, params.Created)
+		id, err := task.Add(db)
 		if err != nil {
 			log.Print("Error: ", err)
 			return
 		}
-
-		task, err := get(db, id)
-		if err != nil {
-			log.Print("Error: ", err)
-			return
-		}
+		task.ID = id
+		
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(task)
 
@@ -132,7 +130,7 @@ func TasksHandler(db *sql.DB, w http.ResponseWriter, r *http.Request){
 		if err != nil {
 			log.Print("Error: ", err)
 		}
-		tasks := []Task{}
+		tasks := []model.Task{}
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(tasks)
 
@@ -141,101 +139,4 @@ func TasksHandler(db *sql.DB, w http.ResponseWriter, r *http.Request){
 		w.Write([]byte("Method "+ r.Method + " no allowed"))	
 	}
 	
-}
-
-func fethTasks(db *sql.DB) ([]Task, error) {
-	tasks := []Task{}
-	rows, err := db.Query("SELECT * FROM task")
-    if err != nil {
-		return tasks, err
-    }
-    defer rows.Close()
-	
-    for rows.Next() {
-        var task Task
-        if err := rows.Scan(&task.ID, &task.Content, &task.Created); err != nil {
-            return tasks, err
-			
-        }
-        tasks = append(tasks, task)
-    }
-
-    if err := rows.Err(); err != nil {
-		return tasks, err
-    }
-	return tasks, nil
-}
-
-
-func get(db *sql.DB, id int64) (Task, error){
-	var task Task
-    row := db.QueryRow("SELECT * FROM task WHERE id = ?", id)
-    if err := row.Scan(&task.ID, &task.Content, &task.Created); err != nil {
-        return task, err
-    }
-    return task, nil
-}
-
-func add(db *sql.DB, content string, created string) (int64, error) {
-	var id int64
-	query, err := db.Prepare("INSERT INTO task (content, created) VALUES(?, ?)")
-	if err != nil {
-		return id, err
-	}
-	defer query.Close()
-
-	result, err := query.Exec(content, created)
-	if err != nil {
-		return id, err
-	}
-
-	id, err = result.LastInsertId()
-	if err != nil {
-		return id, err
-	}
-
-	return id, nil
-}
-
-func update(db *sql.DB, content string, id int64) ([]Task, error) {
-	var tasks []Task
-	query, err := db.Prepare("UPDATE task SET content=? WHERE id=?")
-	if err != nil {
-		return tasks, err
-	}
-	defer query.Close()
-
-	_, err = query.Exec(content, id)
-	if err != nil {
-		return tasks, err
-	}
-
-	tasks, err = fethTasks(db)
-	if err != nil {
-		return tasks, err
-    }
-
-	return tasks, nil	
-}
-
-func delete(db *sql.DB, id int64) ([]Task, error){
-	var tasks []Task
-
-	query, err := db.Prepare("DELETE FROM task WHERE id=?")
-	if err != nil {
-		return tasks, err
-	}
-	defer query.Close()
-
-	_, err = query.Exec(id)
-	if err != nil {
-		return tasks, err
-	}
-		
-	tasks, err = fethTasks(db)
-	if err != nil {
-        return tasks, err
-    }
-
-	return tasks, nil
 }
